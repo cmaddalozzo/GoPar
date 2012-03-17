@@ -60,7 +60,7 @@ func Open(filename string) (par2file * Par2File , err os.Error){
 	info, err := par2file.fhandle.Stat()
 	if err != nil{
 		return nil, err
-	}
+  }
 	fsize := info.Size
 	filedata := make([]byte, fsize)
 	numbytes, _ := par2file.fhandle.Read(filedata)
@@ -110,15 +110,3 @@ func parseHeader(header_data []byte) (header * PacketHeader){
 	header.Rs_id = hex.EncodeToString(header_data[32:48])
 	return header
 }
-
-
-
-
-
-
-
-
-
-
-
-
