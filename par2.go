@@ -18,6 +18,8 @@ const (
 type Par2File struct{
 	filename string
 	fhandle * os.File
+  Mainpacket * MainPacket
+  Fdpackets []* FDPacket
 }
 
 type PacketHeader struct{
@@ -54,33 +56,73 @@ func Open(filename string) (par2file * Par2File , err os.Error){
 	if err != nil{
 		return nil, err
 	}
-	return &Par2File{filename, fhandle}, nil
-}
-func ( par2file * Par2File) GetMainPacket() *MainPacket{
+  par2file = &Par2File{filename:filename, fhandle:fhandle}
 	info, err := par2file.fhandle.Stat()
 	if err != nil{
-		return nil
+		return nil, err
 	}
 	fsize := info.Size
 	filedata := make([]byte, fsize)
 	numbytes, _ := par2file.fhandle.Read(filedata)
 	if int64(numbytes) != fsize{
-		return nil
+		return nil, err
+	}
+  par2file.Mainpacket = extractMainPacket(filedata)//PopulateMainPacket()
+	return par2file, nil
+}
+/*func ( par2file * Par2File) PopulateMainPacket(){
+	info, err := par2file.fhandle.Stat()
+	if err != nil{
+		return //nil
+	}
+	fsize := info.Size
+	filedata := make([]byte, fsize)
+	numbytes, _ := par2file.fhandle.Read(filedata)
+	if int64(numbytes) != fsize{
+		return //nil
 	}
 	type_start := bytes.Index(filedata, []byte(_typestring_main))
+
 	if type_start < 0{
-		return nil
+		return //nil
 	}
 	mainpacket := new(MainPacket)
 	//the start of the header is 48 bytes behind the type string
 	header_start := type_start - 48
 	mainpacket.Header = parseHeader(filedata[header_start:header_start + _headersize])
-	mainpacket.parse(filedata[header_start + _headersize:header_start + int(mainpacket.Header.Length)])
-	//fmt.Printf("end: %d\n", uint8(type_start))
-	return mainpacket;
+	mainpacket.parse(filedata[header_start + _headersize:header_start + _headersize + int(mainpacket.Header.Length)])
+  par2file.Mainpacket = mainpacket
+	//return mainpacket;
 }
+  */
 func (par2file * Par2File) String() string{
 	return par2file.filename
+}
+func extractMainPacket(filedata []byte) (mainpacket * MainPacket){
+  //Find the start of main packet type string
+	type_start := bytes.Index(filedata, []byte(_typestring_main))
+
+	if type_start < 0{
+		return nil
+	}
+	mainpacket = new(MainPacket)
+	//the start of the header is 48 bytes in front of the type string
+	header_start := type_start - 48
+	mainpacket.Header = parseHeader(filedata[header_start:header_start + _headersize])
+	//mainpacket.parse(filedata[header_start + _headersize:header_start + _headersize + int(mainpacket.Header.Length)])
+  packet_body := filedata[header_start + _headersize:header_start + _headersize + int(mainpacket.Header.Length)]
+	//read slice size (8 bytes)
+	binary.Read(bytes.NewBuffer(packet_body[0:8]), binary.LittleEndian, &mainpacket.Slice_size)
+	//read number of files in set (4 bytes)
+	binary.Read(bytes.NewBuffer(packet_body[8:12]), binary.LittleEndian, &mainpacket.Num_files)
+  mainpacket.R_file_ids = make([]string, mainpacket.Num_files)
+  for i := 0; i < int(mainpacket.Num_files); i++{
+    start := 12 + (i * 16)
+    end := start + 16
+	  mainpacket.R_file_ids[i] = hex.EncodeToString(packet_body[start:end])
+  }
+  return mainpacket
+
 }
 func parseHeader(header_data []byte) (header * PacketHeader){
 	//var length uint8
@@ -93,12 +135,19 @@ func parseHeader(header_data []byte) (header * PacketHeader){
 	header.Rs_id = hex.EncodeToString(header_data[32:48])
 	return header
 }
-func (mainpacket * MainPacket) parse(packet_body []byte){
-	//grab slice size
+/*func (mainpacket * MainPacket) parse(packet_body []byte){
+	//read slice size (8 bytes)
 	binary.Read(bytes.NewBuffer(packet_body[0:8]), binary.LittleEndian, &mainpacket.Slice_size)
-	//grab slice size
+	//read number of files in set (4 bytes)
 	binary.Read(bytes.NewBuffer(packet_body[8:12]), binary.LittleEndian, &mainpacket.Num_files)
+  mainpacket.R_file_ids = make([]string, mainpacket.Num_files)
+  for i := 0; i < int(mainpacket.Num_files); i++{
+    start := 12 + (i * 16)
+    end := start + 16
+	  mainpacket.R_file_ids[i] = hex.EncodeToString(packet_body[start:end])
+  }
 }
+*/
 
 
 
